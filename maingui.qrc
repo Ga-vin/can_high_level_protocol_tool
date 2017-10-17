@@ -1,0 +1,13 @@
+<RCC>
+    <qresource prefix="/">
+        <file>images/main.ico</file>
+        <file>images/down.png</file>
+        <file>images/up.png</file>
+        <file>images/down_blue_empty.png</file>
+        <file>images/down_greate.png</file>
+        <file>images/down_nice.png</file>
+        <file>images/up_blue_empty.png</file>
+        <file>images/up_greate.png</file>
+        <file>images/up_nice.png</file>
+    </qresource>
+</RCC>
