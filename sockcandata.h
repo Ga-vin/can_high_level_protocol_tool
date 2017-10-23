@@ -2,6 +2,7 @@
 #define SOCKCANDATA_H
 
 #include <QObject>
+#include <QDebug>
 
 #pragma pack(1)
 typedef struct _arbit_header {
@@ -99,6 +100,61 @@ public:
 
         new_value = (*p<<24) | (*(p+1)<<16) | (*(p+2)<<8) | (*(p+3)<<0);
         return (new_value);
+    }
+
+    static arbit_header_t byte_to_arbit(const QByteArray &byte)
+    {
+        arbit_header_t arbit;
+        uchar *p_data       = (uchar *)byte.data();
+
+        arbit.reserve       = ((*p_data)&0xE0) >> 5;
+        arbit.identify_code = ((*p_data)&0x1C) >> 2;
+        arbit.ctrl_code     = (*p_data)&0x3;
+
+        if ( SockCanData::DEV_IDENTIFY == arbit.identify_code) {
+            arbit.user_code.dev_oid_hi = (*(p_data + 1) << 16) | (*(p_data + 2) << 8) | *(p_data + 3);
+        } else if ( SockCanData::DATA_TRANSMISSION == arbit.identify_code) {
+            arbit.user_code.defined.dest_nid  = *(p_data + 1);
+            arbit.user_code.defined.src_nid   = *(p_data + 2);
+            arbit.user_code.defined.frame_cnt = *(p_data + 3);
+        } else {
+            qDebug() << "UN";
+            memset(&arbit, 0, sizeof(arbit_header_t));
+        }
+
+#ifdef __DEBUG_
+        qDebug() << "H:protocol  = " << arbit.identify_code;
+        qDebug() << "H:ctrl      = " << arbit.ctrl_code;
+        qDebug() << "H:src       = " << arbit.user_code.defined.src_nid;
+        qDebug() << "H:dest      = " << arbit.user_code.defined.dest_nid;
+        qDebug() << "H:frame cnt = " << arbit.user_code.defined.frame_cnt;
+#endif
+        return (arbit);
+    }
+
+    static QByteArray arbit_to_byte(arbit_header_t arbit)
+    {
+        QByteArray byte;
+        byte.resize(sizeof(arbit_header_t));
+
+        uchar *p_data = (uchar *)byte.data();
+
+        *p_data = (arbit.reserve<<5) | (arbit.identify_code<<2) | (arbit.ctrl_code);
+
+        if ( SockCanData::DEV_IDENTIFY == arbit.identify_code)  {
+            *p_data++ = (arbit.user_code.dev_oid_hi&0xFF0000) >> 16;
+            *p_data++ = (arbit.user_code.dev_oid_hi&0x00FF00) >> 8;
+            *p_data   = (arbit.user_code.dev_oid_hi&0x0000FF) >> 0;
+        } else if ( SockCanData::DATA_TRANSMISSION == arbit.identify_code) {
+            *p_data++ = arbit.user_code.defined.dest_nid;
+            *p_data++ = arbit.user_code.defined.src_nid;
+            *p_data   = arbit.user_code.defined.frame_cnt;
+        } else {
+            qDebug() << "UNN";
+            byte.resize(0);
+        }
+
+        return (byte);
     }
 
     QString debug_id(void);

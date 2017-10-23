@@ -12,6 +12,21 @@ SockCanFrame::SockCanFrame(QObject *parent) :
     frame_cnt(0)
 {
     recv_data.clear();
+    //recv_oid.resize(6);
+}
+
+SockCanFrame::SockCanFrame(const SockCanFrame &obj)
+{
+    this->recv_time = obj.get_time_orig();
+    this->recv_protocol = obj.get_protocol();
+    this->recv_service  = obj.get_service();
+    this->recv_src      = obj.get_src_orig();
+    this->recv_dest     = obj.get_dest_orig();
+    this->recv_len      = obj.get_len_value();
+    this->frame_cnt     = obj.get_frame_cnt_orig();
+
+    this->recv_data     = obj.get_data_orig();
+    this->recv_oid      = obj.get_oid();
 }
 
 SockCanFrame::~SockCanFrame()
@@ -28,6 +43,10 @@ void SockCanFrame::clear(void)
     this->recv_len      = 0;
     this->frame_cnt     = 0;
     this->recv_data.clear();
+    this->recv_oid.clear();
+    this->recv_data.resize(0);
+    this->recv_oid.resize(0);
+    //this->recv_oid.resize(6);
 }
 
 void SockCanFrame::set_time(const QTime &tt)
@@ -89,9 +108,19 @@ void SockCanFrame::set_type(uint tt)
     this->recv_type = tt;
 }
 
+void SockCanFrame::set_len(uint len)
+{
+    this->recv_len = len;
+}
+
 QString SockCanFrame::get_time(void) const
 {
     return (this->recv_time.toString("hh:mm:ss.zzz"));
+}
+
+QTime SockCanFrame::get_time_orig() const
+{
+    return (this->recv_time);
 }
 
 QString SockCanFrame::get_protocol(void) const
@@ -106,29 +135,73 @@ QString SockCanFrame::get_service(void) const
 
 QString SockCanFrame::get_src(void) const
 {
-    return (QString("%1").arg(this->recv_src));
+    return (QString("0x") + QString("%1").arg(this->recv_src, 0, 16).toUpper());
+}
+
+uchar SockCanFrame::get_src_orig() const
+{
+    return (this->recv_src);
 }
 
 QString SockCanFrame::get_dest(void) const
 {
-    return (QString("%1").arg(this->recv_dest));
+    return (QString("0x") + QString("%1").arg(this->recv_dest, 0, 16).toUpper());
+}
+
+uchar SockCanFrame::get_dest_orig() const
+{
+    return (this->recv_dest);
 }
 
 QString SockCanFrame::get_data(void) const
 {
     QString tmp = "";
+    uchar   *p_chr  = (uchar *)this->recv_data.data();
+    ushort  *p_data = (ushort *)p_chr;
+    ushort   chk    = SockCanFrame::calc_chksum_16(p_data, this->recv_data.size());
+
+    if ( 0 != chk ) {
+        qDebug() << "data chksum is invalid. " << chk;
+
+        return (tmp);
+    }
+
     QString str = this->recv_data.toHex();
 
-    for (int i = 0; i < str.length(); i += 2) {
+    for (int i = 0; i < (str.length() - 4); i += 2) {
         tmp += str.mid(i, 2) + " ";
     }
 
-    return (tmp.trimmed().toUpper());
+    QString ret_str("");
+
+    if ( tmp.mid(0, 5) == QString("3c 11")) {
+        ret_str = QObject::tr("上位机请求下位机发送工程参数 ");
+    } else if ( tmp.mid(0, 5) == QString("3c 33")) {
+        ret_str = QObject::tr("上位机发送到下位机的控制指令 ");
+    } else if ( tmp.mid(0, 5) == QString("3c 55")) {
+        ret_str = QObject::tr("上位机请求下位机发送备份的关键数据 ");
+    } else if ( tmp.mid(0, 5) == QString("1b 00")) {
+        ret_str = QObject::tr("时间广播服务");
+    }
+
+    ret_str.append(tmp.mid(6).trimmed().toUpper());
+
+    return (ret_str);
+}
+
+QByteArray SockCanFrame::get_data_orig() const
+{
+    return (this->recv_data);
 }
 
 QString SockCanFrame::get_len() const
 {
-    return (QString("%1").arg(this->recv_len));
+    return (QString("0x") + QString("%1").arg(this->recv_len - 8, 0, 16).toUpper());
+}
+
+uint SockCanFrame::get_len_value(void) const
+{
+    return (this->recv_len);
 }
 
 QString SockCanFrame::get_type() const
@@ -168,9 +241,19 @@ QString SockCanFrame::get_type() const
     return (str);
 }
 
+uint SockCanFrame::get_type_orig() const
+{
+    return (this->recv_type);
+}
+
 QString SockCanFrame::get_frame_cnt() const
 {
     return (QString("%1").arg(this->frame_cnt));
+}
+
+uint SockCanFrame::get_frame_cnt_orig() const
+{
+    return (this->frame_cnt);
 }
 
 QByteArray SockCanFrame::get_oid() const
@@ -190,6 +273,42 @@ bool SockCanFrame::is_device_identify_pro(void) const
 bool SockCanFrame::is_data_tramsmission_pro(void) const
 {
     if ( QString("%1").arg(QObject::tr("数据传输帧")) == this->recv_protocol) {
+        return (true);
+    } else {
+        return (false);
+    }
+}
+
+SockCanFrame& SockCanFrame::operator =(const SockCanFrame *obj)
+{
+    if ( this == obj) {
+        return (*this);
+    }
+
+    this->recv_time     = obj->get_time_orig();
+    this->recv_protocol = obj->get_protocol();
+    this->recv_service  = obj->get_service();
+    this->recv_src      = obj->get_src_orig();
+    this->recv_dest     = obj->get_dest_orig();
+    this->recv_len      = obj->get_len_value();
+    this->recv_data     = obj->get_data_orig();
+    this->frame_cnt     = obj->get_frame_cnt_orig();
+    this->recv_oid      = obj->get_oid();
+
+    return (*this);
+}
+
+bool SockCanFrame::operator ==(const SockCanFrame &obj)
+{
+    if ( (this->recv_time == obj.get_time_orig()) &&
+         (this->recv_protocol == obj.get_protocol()) &&
+         (this->recv_service  == obj.get_service()) &&
+         (this->recv_src == obj.get_src_orig()) &&
+         (this->recv_dest == obj.get_dest_orig()) &&
+         (this->recv_len == obj.get_len_value()) &&
+         (this->recv_data == obj.get_data_orig()) &&
+         (this->recv_oid == obj.get_oid()) &&
+         (this->frame_cnt == obj.frame_cnt)) {
         return (true);
     } else {
         return (false);

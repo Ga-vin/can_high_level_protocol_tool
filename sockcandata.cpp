@@ -49,21 +49,21 @@ SockCanData::SockCanData(const QByteArray &byte, QObject *parent) :
         this->len     = *p_data++;
         memcpy(this->data, p_data, sizeof(int8_t) * (this->len));
 
-        uint new_id = SockCanData::little_ending_to_big(this->id);
-        memcpy(&arbit, &new_id, sizeof(arbit_header_t));
+        this->arbit = SockCanData::byte_to_arbit(byte);
 
 #ifdef __DEBUG_
-        qDebug() << "ID: " << debug_id();
+        qDebug() << "ID     : " << debug_id();
         qDebug() << "CHANNEL: " << debug_channel();
-        qDebug() << "EXT: " << debug_ext();
-        qDebug() << "RTR: " << debug_rtr();
-        qDebug() << "LEN: " << debug_len();
-        qDebug() << "DATA: " << debug_data();
+        qDebug() << "EXT    : " << debug_ext();
+        qDebug() << "RTR    : " << debug_rtr();
+        qDebug() << "LEN    : " << debug_len();
+        qDebug() << "DATA   : " << debug_data();
 
-        qDebug() << "protocol = " << arbit.identify_code;
-        qDebug() << "ctrl = " << arbit.ctrl_code;
-        qDebug() << "src = " << arbit.user_code.defined.src_nid;
-        qDebug() << "dest = " << arbit.user_code.defined.dest_nid;
+
+        qDebug() << "protocol  = " << arbit.identify_code;
+        qDebug() << "ctrl      = " << arbit.ctrl_code;
+        qDebug() << "src       = " << arbit.user_code.defined.src_nid;
+        qDebug() << "dest      = " << arbit.user_code.defined.dest_nid;
         qDebug() << "frame cnt = " << arbit.user_code.defined.frame_cnt;
 #endif
     }
@@ -93,8 +93,7 @@ SockCanData::SockCanData(const SockCanData &can)
     memset(this->data, 0, sizeof(int8_t) * (SockCanData::MAX_DATA_LEN));
     memcpy(this->data, p_data, sizeof(int8_t) * this->len);
 
-    uint new_id = SockCanData::little_ending_to_big(this->id);
-    memcpy(&arbit, &new_id, sizeof(arbit_header_t));
+    this->arbit = SockCanData::byte_to_arbit(QByteArray((const char*)(can.can_data())));
 }
 
 SockCanData::~SockCanData()
@@ -308,8 +307,7 @@ SockCanData &SockCanData::operator =(const SockCanData *p_can)
     const int8_t *p_data = p_can->can_data();
     memcpy(this->data, p_data, sizeof(int8_t) * this->len);
 
-    uint new_id = SockCanData::little_ending_to_big(this->id);
-    memcpy(&arbit, &new_id, sizeof(arbit_header_t));
+    this->arbit = SockCanData::byte_to_arbit(QByteArray((const char *)(p_can->can_data())));
 
     return (*this);
 }

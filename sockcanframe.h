@@ -24,6 +24,7 @@ class SockCanFrame : public QObject
     Q_OBJECT
 public:
     explicit SockCanFrame(QObject *parent = 0);
+    explicit SockCanFrame(const SockCanFrame &obj);
     ~SockCanFrame();
 
     void    clear(void);
@@ -38,16 +39,24 @@ public:
     void    inc_len(int len = 1);
     void    inc_frame_cnt(int cnt = 1);
     void    set_type(uint tt);
+    void    set_len(uint len);
 
     QString get_time(void) const;
+    QTime   get_time_orig(void) const;
     QString get_protocol(void) const;
     QString get_service(void) const;
     QString get_src(void) const;
+    uchar   get_src_orig(void) const;
     QString get_dest(void) const;
+    uchar   get_dest_orig(void) const;
     QString get_data(void) const;
+    QByteArray get_data_orig(void) const;
     QString get_len(void) const;
+    uint    get_len_value(void) const;
     QString get_type(void) const;
+    uint    get_type_orig(void) const;
     QString get_frame_cnt(void) const;
+    uint    get_frame_cnt_orig(void) const;
     QByteArray get_oid(void) const;
 
     bool    is_device_identify_pro(void) const;
@@ -133,6 +142,70 @@ public:
 
         return (chk);
     }
+
+    static ushort calc_chksum_16(ushort *p_data, uint len)
+    {
+        ushort chk = 0;
+
+        for (size_t i = 0; i < len; ++i) {
+            chk ^= *(p_data + i);
+        }
+
+        return (chk);
+    }
+
+    static can_msg_header_t byte_to_header(const QByteArray &byte)
+    {
+        can_msg_header_t header;
+
+        if ( byte.size() != sizeof(header)) {
+            qDebug() << "size not right";
+            memset(&header, 0, sizeof(can_msg_header_t));
+
+            return (header);
+        }
+
+        if ( SockCanFrame::calc_chksum((uchar *)byte.data(), 8)) {
+            qDebug() << "chksum is not right";
+
+            memset(&header, 0, sizeof(can_msg_header_t));
+            return (header);
+        }
+
+        uchar *p_data = (uchar *)(byte.data());
+
+        header.version  = ((*p_data)&0xE0) >> 5;
+        header.len      = (((*p_data)&0x1F) << 6) | ((*(p_data + 1)&0xFC) >> 2);
+        header.reserve1 = *(p_data + 1)&0x3;
+        header.tran     = (*(p_data + 2)&0xF0) >> 4;
+        header.ctrl     = *(p_data + 2)&0x0F;
+        header.src      = *(p_data + 3);
+        header.dest     = *(p_data + 4);
+        header.reserve2 = (*(p_data + 5) << 8) | *(p_data + 6);
+        header.chk      = *(p_data + 7);
+
+        return (header);
+    }
+
+    static QByteArray header_to_byte(const can_msg_header_t header)
+    {
+        QByteArray byte;
+        byte.resize(sizeof(can_msg_header_t));
+
+        uchar *p_data = (uchar *)byte.data();
+
+        *p_data++ = (header.version<<5) | ((header.len&0x3C0)>>6);
+        *p_data++ = (header.len&0x03F)<<2 | (header.reserve1);
+        *p_data++ = (header.tran<<4) | (header.ctrl<<4);
+        *p_data++ = header.src;
+        *p_data++ = header.dest;
+        *p_data++ = (header.reserve2&0xFF00) >> 8;
+        *p_data++ = (header.reserve2&0x00FF);
+        *p_data   = header.chk;
+    }
+
+    SockCanFrame& operator =(const SockCanFrame *obj);
+    bool          operator ==(const SockCanFrame &obj);
 
 signals:
     

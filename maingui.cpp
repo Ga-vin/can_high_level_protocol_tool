@@ -16,6 +16,7 @@ MainGui::MainGui(QWidget *parent) :
     QTextCodec::setCodecForTr(QTextCodec::codecForName("gb18030"));
 
     this->init_widget();
+    this->init_object();
     this->init_timer();
     this->make_connections();
 }
@@ -41,10 +42,13 @@ void MainGui::do_rx_msg(bool flag)
     if ( flag) {
         p_task = new RxTask(port);
         QObject::connect(this, SIGNAL(notify_change_stop_flag()), p_task, SLOT(update_stop_flag()));
+        // QObject::connect(this->p_task, SIGNAL(notify_can_frame(SockCanFrame)), this, SLOT(do_update_rx_msg(SockCanFrame)));
+        QObject::connect(p_task, SIGNAL(notify_can_frame(QByteArray)), this, SLOT(do_update_rx_msg(QByteArray)));
         p_task->start();
     } else {
         emit notify_change_stop_flag();
         QObject::disconnect(this, SIGNAL(notify_change_stop_flag()), p_task, SLOT(update_stop_flag()));
+        QObject::disconnect(this->p_task, SIGNAL(notify_can_frame(QByteArray)), this, SLOT(do_update_rx_msg(QByteArray)));
         p_task->quit();
         p_task->wait(10);
 
@@ -52,55 +56,9 @@ void MainGui::do_rx_msg(bool flag)
     }
 }
 
-void MainGui::do_update_rx_msg(const SockCanFrame *frame)
+void MainGui::do_update_rx_msg(const QByteArray &byte)
 {
-    qDebug() << "receive data";
-    int cnt = this->ui->p_tab_rx->rowCount();
-    this->ui->p_tab_rx->insertRow(cnt);
-
-    QTableWidgetItem *p_item_0 = new QTableWidgetItem;
-    QTableWidgetItem *p_item_1 = new QTableWidgetItem;
-    QTableWidgetItem *p_item_2 = new QTableWidgetItem;
-    QTableWidgetItem *p_item_3 = new QTableWidgetItem;
-    QTableWidgetItem *p_item_4 = new QTableWidgetItem;
-    QTableWidgetItem *p_item_5 = new QTableWidgetItem;
-    QTableWidgetItem *p_item_6 = new QTableWidgetItem;
-
-    if ( frame->is_data_tramsmission_pro()) {
-        p_item_0->setText(frame->get_time());
-        p_item_1->setText(frame->get_protocol());
-        p_item_2->setText(frame->get_service());
-        p_item_3->setText(frame->get_src());
-        p_item_4->setText(frame->get_dest());
-        p_item_5->setText(QString("%1").arg(frame->get_len()));
-        p_item_6->setText(QString("%1").arg(frame->get_data()));
-
-        this->ui->p_tab_rx->setItem(cnt, 0, p_item_0);
-        this->ui->p_tab_rx->setItem(cnt, 1, p_item_1);
-        this->ui->p_tab_rx->setItem(cnt, 2, p_item_2);
-        this->ui->p_tab_rx->setItem(cnt, 3, p_item_3);
-        this->ui->p_tab_rx->setItem(cnt, 4, p_item_4);
-        this->ui->p_tab_rx->setItem(cnt, 5, p_item_5);
-        this->ui->p_tab_rx->setItem(cnt, 6, p_item_6);
-    } else if ( frame->is_device_identify_pro()) {
-        QString tmp("");
-        QString str = frame->get_oid().toHex();
-        for (int i = 0; i < str.length(); i += 2) {
-            tmp += str.mid(i, 2) + " ";
-        }
-
-        p_item_0->setText(frame->get_time());
-        p_item_1->setText(frame->get_type());
-        p_item_2->setText(frame->get_src());
-        p_item_3->setText(tmp.trimmed().toUpper());
-        p_item_4->setText(frame->get_dest());
-
-        this->ui->p_tab_rx_dev->setItem(cnt, 0, p_item_0);
-        this->ui->p_tab_rx_dev->setItem(cnt, 1, p_item_1);
-        this->ui->p_tab_rx_dev->setItem(cnt, 2, p_item_2);
-        this->ui->p_tab_rx_dev->setItem(cnt, 3, p_item_3);
-        this->ui->p_tab_rx_dev->setItem(cnt, 4, p_item_4);
-    }
+    this->data_handle(byte);
 }
 
 void MainGui::on_p_btn_id_convert_clicked()
@@ -482,6 +440,12 @@ void MainGui::on_p_btn_oid_direction_toggled(bool flag)
     }
 }
 
+void MainGui::on_p_btn_clear_rx_clicked()
+{
+    this->ui->p_tab_rx->setRowCount(0);
+    this->ui->p_tab_rx_dev->setRowCount(0);
+}
+
 void MainGui::init_widget()
 {
     /* Title */
@@ -519,6 +483,22 @@ void MainGui::init_widget()
     this->ui->p_line_id_ctrl->setWhatsThis(QObject::tr("只能输入0、1、2、3"));
 
     this->ui->p_line_head_chksum->setReadOnly(true);
+
+    QRegExp id_exp("([0-9|A-F]{2}\\s){3}[0-9|A-F]{2}");
+    this->ui->p_line_id_result->setValidator(new QRegExpValidator(id_exp, this));
+
+    id_exp.setPattern("([0-9|A-F]{2}\\s){7}[0-9|A-F]{2}");
+    this->ui->p_line_head_result->setValidator(new QRegExpValidator(id_exp, this));
+
+    id_exp.setPattern("([0-9|A-F]{2}\\s){5}[0-9|A-F]{2}");
+    this->ui->p_line_oid_result->setValidator(new QRegExpValidator(id_exp, this));
+}
+
+void MainGui::init_object()
+{
+    this->psock_can_frame = new SockCanFrame;
+    this->is_start = false;
+    this->is_finish = false;
 }
 
 void MainGui::init_timer()
@@ -541,5 +521,201 @@ void MainGui::change_btn_color(bool flag)
         this->ui->p_btn_start_rx->setStyleSheet("background-color:green");
     } else {
         this->ui->p_btn_start_rx->setStyleSheet("background-color:red");
+    }
+}
+
+void MainGui::data_handle(const QByteArray &byte)
+{
+    if ( byte.size() != RxTask::DEFAULT_DATA_SIZE) {
+        qDebug() << "data received size is not correct. It is " << byte.size() << " now";
+        return ;
+    }
+
+    SockCanData sock_can_data(byte);
+    char *p_new_tmp = (char *)(sock_can_data.can_data());
+
+    if ( sock_can_data.is_device_identify_pro()) {
+        qDebug() << "device identify frame";
+        /* 设备识别帧 */
+        this->psock_can_frame->clear();
+        this->is_start  = true;
+        this->is_finish = true;
+        this->psock_can_frame->set_protocol(QString("%1").arg(QObject::tr("设备识别帧")));
+        this->psock_can_frame->set_service(QString("null"));
+        this->psock_can_frame->set_time(QTime::currentTime());
+        this->psock_can_frame->set_type(sock_can_data.ctrl());
+        this->psock_can_frame->set_src(0xF0);
+
+        if ( sock_can_data.is_dev_identify_broad()) {
+            qDebug() << "broad";
+            this->psock_can_frame->set_dest(0xFF);
+            uchar *p_data  = (uchar *)sock_can_data.can_data();
+            uint   tmp_oid = sock_can_data.oid_upper();
+
+            QByteArray tmp_array;
+            tmp_array.append((uchar)((tmp_oid&0xFF0000) >> 16));
+            tmp_array.append((uchar)((tmp_oid&0x00FF00) >> 8));
+            tmp_array.append((uchar)((tmp_oid&0x0000FF) >> 0));
+            tmp_array.append(*p_data);
+            tmp_array.append(*(p_data + 1));
+            tmp_array.append(*(p_data + 2));
+            this->psock_can_frame->append_oid(tmp_array);
+        } else if ( sock_can_data.is_dev_identify_allow()){
+            qDebug() << "allow";
+            this->psock_can_frame->set_dest(*(p_new_tmp + 3));
+
+            uint oid      = sock_can_data.oid_upper();
+            uchar *p_data = (uchar *)sock_can_data.can_data();
+
+            QByteArray tmp_array;
+            tmp_array.append((uchar)((oid&0xFF0000) >> 16));
+            tmp_array.append((uchar)((oid&0x00FF00) >>  8));
+            tmp_array.append((uchar)((oid&0x0000FF) >>  0));
+            tmp_array.append(*p_data);
+            tmp_array.append(*(p_data + 1));
+            tmp_array.append(*(p_data + 2));
+            this->psock_can_frame->append_oid(tmp_array);
+        } else {
+            qDebug() << "unknown";
+            this->is_start  = false;
+            this->is_finish = false;
+        }
+    } else if ( sock_can_data.is_data_trans_pro()) {
+        /* 数据传输帧 */
+        if ( sock_can_data.is_ind_frame() || sock_can_data.is_first_frame()) {
+            if ( SockCanFrame::calc_chksum((uchar *)p_new_tmp, 8)) {
+                qDebug() << "first frame chksum invalid";
+                return ;
+            }
+
+            /* 记录起始时间 */
+            this->start_time = QTime::currentTime();
+
+            /* 第1帧或者独立帧 */
+            this->psock_can_frame->clear();
+            this->byte_cnt = 0;
+            this->is_start = true;
+            this->psock_can_frame->set_time(this->start_time);
+            this->psock_can_frame->set_type(sock_can_data.ctrl());
+
+            /* 填充帧信息 */
+            this->psock_can_frame->set_protocol(QString("%1").arg(QObject::tr("数据传输帧")));
+
+            /* 填充源和目的地址 */
+            this->psock_can_frame->set_src(sock_can_data.src());
+            this->psock_can_frame->set_dest(sock_can_data.dest());
+
+            QByteArray byte_tmp((const char*)p_new_tmp, 8);
+
+            can_msg_header_t header = SockCanFrame::byte_to_header(byte_tmp);
+            QString          trans_service;
+            switch ( header.tran) {
+            case SockCanData::INFO_TRANS:
+                trans_service = QString("%1/%2").arg(QObject::tr("信息传输协议")).arg(this->psock_can_frame->get_type());
+                break;
+
+            case SockCanData::TIME_TRANS:
+                trans_service = QString("%1/%2").arg(QObject::tr("时间传输协议")).arg(this->psock_can_frame->get_type());
+                break;
+
+            case SockCanData::ON_BOARD:
+                trans_service = QString("%1/%2").arg(QObject::tr("在轨快速测试协议")).arg(this->psock_can_frame->get_type());
+                break;
+
+            case SockCanData::FILE_TRANS:
+                trans_service = QString("%1/%2").arg(QObject::tr("文件传输协议")).arg(this->psock_can_frame->get_type());
+                break;
+
+            case SockCanData::DEV_DRIVER:
+                trans_service = QString("%1/%2").arg(QObject::tr("设备驱动协议")).arg(this->psock_can_frame->get_type());
+                break;
+
+            case SockCanData::TM_TRANS:
+                trans_service = QString("%1/%2").arg(QObject::tr("遥测传输协议")).arg(this->psock_can_frame->get_type());
+                break;
+
+            case SockCanData::TC_TRANS:
+                trans_service = QString("%1/%2").arg(QObject::tr("遥控传输协议")).arg(this->psock_can_frame->get_type());
+                break;
+
+            case SockCanData::MEM_DOWN:
+                trans_service = QString("%1/%2").arg(QObject::tr("内存下载协议")).arg(this->psock_can_frame->get_type());
+                break;
+
+            case SockCanData::BUS_MANAGE:
+                trans_service = QString("%1/%2").arg(QObject::tr("总线管理维护协议")).arg(this->psock_can_frame->get_type());
+                break;
+
+            default:
+                qDebug() << "service is invalid";
+                return ;
+            }
+
+            this->psock_can_frame->set_service(trans_service);
+            this->psock_can_frame->inc_frame_cnt();
+            this->psock_can_frame->set_len(header.len);
+
+            if ( sock_can_data.is_ind_frame()) {
+                this->is_finish = true;
+            }
+            this->byte_cnt += 8;
+        } else if ( (this->is_start) && (sock_can_data.is_last_frame())) {
+            /* Last frame */
+            uint byte_left          = this->psock_can_frame->get_len_value() - this->byte_cnt;
+            this->is_finish         = true;
+            // qDebug() << SockCanData::bytearray_to_hex_str(QByteArray(p_new_tmp, byte_left));
+            this->psock_can_frame->append_data(QByteArray(p_new_tmp, byte_left));
+            this->psock_can_frame->set_time(this->start_time);
+        } else {
+            if ( !this->is_start) {
+                qDebug() << "invalid frame";
+                return ;
+            }
+
+            this->psock_can_frame->append_data(QByteArray(p_new_tmp, 8));
+            this->byte_cnt += 8;
+        }
+    } else {
+        qDebug() << "invalid";
+        return ;
+    }
+
+    if ( this->is_start && this->is_finish) {
+        this->byte_cnt  = 0;
+        this->is_start  = false;
+        this->is_finish = false;
+
+        this->update_data_tables();
+    }
+}
+
+void MainGui::update_data_tables()
+{
+    if ( this->psock_can_frame->is_data_tramsmission_pro()) {
+        int cnt = this->ui->p_tab_rx->rowCount();
+        this->ui->p_tab_rx->insertRow(cnt);
+
+        this->ui->p_tab_rx->setItem(cnt, 0, new QTableWidgetItem(this->psock_can_frame->get_time()));
+        this->ui->p_tab_rx->setItem(cnt, 1, new QTableWidgetItem(this->psock_can_frame->get_protocol()));
+        this->ui->p_tab_rx->setItem(cnt, 2, new QTableWidgetItem(this->psock_can_frame->get_service()));
+        this->ui->p_tab_rx->setItem(cnt, 3, new QTableWidgetItem(this->psock_can_frame->get_src()));
+        this->ui->p_tab_rx->setItem(cnt, 4, new QTableWidgetItem(this->psock_can_frame->get_dest()));
+        this->ui->p_tab_rx->setItem(cnt, 5, new QTableWidgetItem(QString("0x") + QString("%1").arg(this->psock_can_frame->get_len_value() - 8, 0, 16).toUpper()));
+        this->ui->p_tab_rx->setItem(cnt, 6, new QTableWidgetItem(QString("%1").arg(this->psock_can_frame->get_data())));
+    } else if ( this->psock_can_frame->is_device_identify_pro()) {
+        int curr_row_cnt = this->ui->p_tab_rx_dev->rowCount();
+        this->ui->p_tab_rx_dev->insertRow(curr_row_cnt);
+
+        QString tmp("");
+        QString str = this->psock_can_frame->get_oid().toHex();
+        for (int i = 0; i < str.length(); i += 2) {
+            tmp += str.mid(i, 2) + " ";
+        }
+
+        this->ui->p_tab_rx_dev->setItem(curr_row_cnt, 0, new QTableWidgetItem(this->psock_can_frame->get_time()));
+        this->ui->p_tab_rx_dev->setItem(curr_row_cnt, 1, new QTableWidgetItem(this->psock_can_frame->get_type()));
+        this->ui->p_tab_rx_dev->setItem(curr_row_cnt, 2, new QTableWidgetItem(this->psock_can_frame->get_src()));
+        this->ui->p_tab_rx_dev->setItem(curr_row_cnt, 3, new QTableWidgetItem(tmp.trimmed().toUpper()));
+        this->ui->p_tab_rx_dev->setItem(curr_row_cnt, 4, new QTableWidgetItem(this->psock_can_frame->get_dest()));
     }
 }

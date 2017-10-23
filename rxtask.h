@@ -7,7 +7,6 @@
 #include <QtCore>
 
 class SockCanData;
-class SockCanFrame;
 
 class RxTask : public QThread
 {
@@ -24,7 +23,7 @@ protected:
     void stop(void);
 
 signals:
-    void notify_can_frame(const SockCanFrame *frame);
+    void notify_can_frame(const QByteArray &byte);
     
 public slots:
     void update_stop_flag(void);
@@ -33,16 +32,10 @@ private:
     QUdpSocket   *p_udp_socket;
     quint16       port;
     QTime         start_time;
-    SockCanData  *p_can_data;
-    SockCanFrame *p_can_frame;
 
-    bool          is_start;
-    bool          is_finish;
     bool          is_stop;
 
     QMutex        locker;
-
-    void data_handler(const QByteArray &byte);
 };
 
 #endif // RXTASK_H
