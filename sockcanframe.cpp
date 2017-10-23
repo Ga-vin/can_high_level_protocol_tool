@@ -158,7 +158,7 @@ QString SockCanFrame::get_data(void) const
     QString tmp = "";
     uchar   *p_chr  = (uchar *)this->recv_data.data();
     ushort  *p_data = (ushort *)p_chr;
-    ushort   chk    = SockCanFrame::calc_chksum_16(p_data, this->recv_data.size());
+    ushort   chk    = SockCanFrame::calc_chksum_16(p_data, this->recv_data.size()/2);
 
     if ( 0 != chk ) {
         qDebug() << "data chksum is invalid. " << chk;

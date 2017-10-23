@@ -148,7 +148,7 @@ public:
         ushort chk = 0;
 
         for (size_t i = 0; i < len; ++i) {
-            chk ^= *(p_data + i);
+            chk ^= (((*(p_data + i)&0xFF) << 8) | ((*(p_data + i)&0xFF00) >> 8));
         }
 
         return (chk);
