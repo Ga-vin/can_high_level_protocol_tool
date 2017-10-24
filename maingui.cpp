@@ -6,6 +6,7 @@
 #include <QRegExpValidator>
 #include "maingui.h"
 #include "sockcandata.h"
+#include "cerr.h"
 
 
 MainGui::MainGui(QWidget *parent) :
@@ -42,7 +43,6 @@ void MainGui::do_rx_msg(bool flag)
     if ( flag) {
         p_task = new RxTask(port);
         QObject::connect(this, SIGNAL(notify_change_stop_flag()), p_task, SLOT(update_stop_flag()));
-        // QObject::connect(this->p_task, SIGNAL(notify_can_frame(SockCanFrame)), this, SLOT(do_update_rx_msg(SockCanFrame)));
         QObject::connect(p_task, SIGNAL(notify_can_frame(QByteArray)), this, SLOT(do_update_rx_msg(QByteArray)));
         p_task->start();
     } else {
@@ -446,6 +446,28 @@ void MainGui::on_p_btn_clear_rx_clicked()
     this->ui->p_tab_rx_dev->setRowCount(0);
 }
 
+void MainGui::do_update_err_rx_msg(const QByteArray &byte)
+{
+    if ( byte.size() <= 0) {
+        qDebug() << "error rx msg invalid. ";
+
+        return ;
+    }
+
+    CErr cerr_msg(byte);
+
+    int row_cnt = this->ui->p_tab_rx_err->rowCount();
+    this->ui->p_tab_rx_err->insertRow(row_cnt);
+
+    /* 类型码 | 错误码 | 文件名 | 函数名 | 行数 | 错误描述 */
+    this->ui->p_tab_rx_err->setItem(row_cnt, 0, new QTableWidgetItem(QString("%1").arg(cerr_msg.get_code_str())));
+    this->ui->p_tab_rx_err->setItem(row_cnt, 1, new QTableWidgetItem(QString("%1").arg(cerr_msg.get_type_str())));
+    this->ui->p_tab_rx_err->setItem(row_cnt, 2, new QTableWidgetItem(QString("%1").arg(cerr_msg.get_file_name())));
+    this->ui->p_tab_rx_err->setItem(row_cnt, 3, new QTableWidgetItem(QString("%1").arg(cerr_msg.get_func_name())));
+    this->ui->p_tab_rx_err->setItem(row_cnt, 4, new QTableWidgetItem(QString("%1").arg(cerr_msg.get_line_str())));
+    this->ui->p_tab_rx_err->setItem(row_cnt, 5, new QTableWidgetItem(QString("%1").arg(cerr_msg.get_err_desp())));
+}
+
 void MainGui::init_widget()
 {
     /* Title */
@@ -466,6 +488,8 @@ void MainGui::init_widget()
     this->ui->p_tab_rx->horizontalHeader()->setStretchLastSection(true);
     this->ui->p_tab_rx->setEditTriggers(QAbstractItemView::NoEditTriggers);
     this->ui->p_tab_rx_dev->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    this->ui->p_tab_rx_err->horizontalHeader()->setFont(font);
+    this->ui->p_tab_rx_err->horizontalHeader()->setStretchLastSection(true);
 
     /* 平均表格每行 */
     this->ui->p_tab_rx_dev->horizontalHeader()->setResizeMode(QHeaderView::Stretch);
@@ -492,13 +516,25 @@ void MainGui::init_widget()
 
     id_exp.setPattern("([0-9|A-F]{2}\\s){5}[0-9|A-F]{2}");
     this->ui->p_line_oid_result->setValidator(new QRegExpValidator(id_exp, this));
+
+    this->ui->p_spin_recv_err_port->setValue(55000);
+    this->ui->p_spin_tx_port->setRange(1000, 99999);
+    this->ui->p_spin_tx_port->setValue(55008);
 }
 
 void MainGui::init_object()
 {
     this->psock_can_frame = new SockCanFrame;
-    this->is_start = false;
-    this->is_finish = false;
+    this->is_start        = false;
+    this->is_finish       = false;
+
+    this->ack_data_sendp  = new QUdpSocket;
+
+    this->prj_ack_tx_cnt  = 0;
+    this->bak_ack_tx_cnt  = 0;
+    this->tm_ack_tx_cnt   = 0;
+    this->mem_ack_tx_cnt  = 0;
+    this->bus_man_tx_cnt  = 0;
 }
 
 void MainGui::init_timer()
@@ -513,6 +549,7 @@ void MainGui::init_timer()
 void MainGui::make_connections()
 {
     QObject::connect(this->ui->p_btn_start_rx, SIGNAL(toggled(bool)), this, SLOT(do_rx_msg(bool)));
+    QObject::connect(this, SIGNAL(notify_ack_data(int)), this, SLOT(do_send_back_ack_data(int)));
 }
 
 void MainGui::change_btn_color(bool flag)
@@ -611,39 +648,45 @@ void MainGui::data_handle(const QByteArray &byte)
             QString          trans_service;
             switch ( header.tran) {
             case SockCanData::INFO_TRANS:
-                trans_service = QString("%1/%2").arg(QObject::tr("信息传输协议")).arg(this->psock_can_frame->get_type());
+                trans_service = QString("%1/%2").arg(QObject::tr("信息传输服务")).arg(this->psock_can_frame->get_type());
                 break;
 
             case SockCanData::TIME_TRANS:
-                trans_service = QString("%1/%2").arg(QObject::tr("时间传输协议")).arg(this->psock_can_frame->get_type());
+                trans_service = QString("%1/%2").arg(QObject::tr("时间传输服务")).arg(this->psock_can_frame->get_type());
                 break;
 
             case SockCanData::ON_BOARD:
-                trans_service = QString("%1/%2").arg(QObject::tr("在轨快速测试协议")).arg(this->psock_can_frame->get_type());
+                trans_service = QString("%1/%2").arg(QObject::tr("在轨快速测试服务")).arg(this->psock_can_frame->get_type());
                 break;
 
             case SockCanData::FILE_TRANS:
-                trans_service = QString("%1/%2").arg(QObject::tr("文件传输协议")).arg(this->psock_can_frame->get_type());
+                trans_service = QString("%1/%2").arg(QObject::tr("文件传输服务")).arg(this->psock_can_frame->get_type());
                 break;
 
             case SockCanData::DEV_DRIVER:
-                trans_service = QString("%1/%2").arg(QObject::tr("设备驱动协议")).arg(this->psock_can_frame->get_type());
+                trans_service = QString("%1/%2").arg(QObject::tr("设备驱动服务")).arg(this->psock_can_frame->get_type());
                 break;
 
             case SockCanData::TM_TRANS:
-                trans_service = QString("%1/%2").arg(QObject::tr("遥测传输协议")).arg(this->psock_can_frame->get_type());
+                /* 需要遥测回传 */
+                emit notify_ack_data(MainGui::TM_ACK);
+                trans_service = QString("%1/%2").arg(QObject::tr("遥测传输服务")).arg(this->psock_can_frame->get_type());
                 break;
 
             case SockCanData::TC_TRANS:
-                trans_service = QString("%1/%2").arg(QObject::tr("遥控传输协议")).arg(this->psock_can_frame->get_type());
+                trans_service = QString("%1/%2").arg(QObject::tr("遥控传输服务")).arg(this->psock_can_frame->get_type());
                 break;
 
             case SockCanData::MEM_DOWN:
-                trans_service = QString("%1/%2").arg(QObject::tr("内存下载协议")).arg(this->psock_can_frame->get_type());
+                /* 需要内存下卸回传 */
+                emit notify_ack_data(MainGui::MEM_ACK);
+                trans_service = QString("%1/%2").arg(QObject::tr("内存下载服务")).arg(this->psock_can_frame->get_type());
                 break;
 
             case SockCanData::BUS_MANAGE:
-                trans_service = QString("%1/%2").arg(QObject::tr("总线管理维护协议")).arg(this->psock_can_frame->get_type());
+                /* 需要回复总线管理 */
+                emit notify_ack_data(MainGui::BUS_MAN);
+                trans_service = QString("%1/%2").arg(QObject::tr("总线管理维护服务")).arg(this->psock_can_frame->get_type());
                 break;
 
             default:
@@ -661,9 +704,14 @@ void MainGui::data_handle(const QByteArray &byte)
             this->byte_cnt += 8;
         } else if ( (this->is_start) && (sock_can_data.is_last_frame())) {
             /* Last frame */
+            if ( ((uchar)(*p_new_tmp) == 0x3C) && ((uchar)(*(p_new_tmp + 1)) == 0x11)) {
+                emit notify_ack_data(MainGui::PRJ_ACK);
+            } else if ( ((uchar)(*p_new_tmp) == 0x3C) && ((uchar)(*(p_new_tmp + 1)) == 0x55)) {
+                emit notify_ack_data(MainGui::BAK_ACK);
+            }
+
             uint byte_left          = this->psock_can_frame->get_len_value() - this->byte_cnt;
             this->is_finish         = true;
-            // qDebug() << SockCanData::bytearray_to_hex_str(QByteArray(p_new_tmp, byte_left));
             this->psock_can_frame->append_data(QByteArray(p_new_tmp, byte_left));
             this->psock_can_frame->set_time(this->start_time);
         } else {
@@ -718,4 +766,127 @@ void MainGui::update_data_tables()
         this->ui->p_tab_rx_dev->setItem(curr_row_cnt, 3, new QTableWidgetItem(tmp.trimmed().toUpper()));
         this->ui->p_tab_rx_dev->setItem(curr_row_cnt, 4, new QTableWidgetItem(this->psock_can_frame->get_dest()));
     }
+}
+
+void MainGui::send_ack_data(const QString &host_ip, ushort host_port, const QByteArray &byte)
+{
+    if ( host_ip.isEmpty()) {
+        QMessageBox::warning(0,
+                             QObject::tr("警告"),
+                             QObject::tr("目标IP地址不为空"));
+        return ;
+    }
+
+    if ( host_port < 1000) {
+        QMessageBox::warning(0,
+                             QObject::tr("警告"),
+                             QObject::tr("目标端口不能小于1000"));
+        return ;
+    }
+
+    if ( byte.isEmpty()) {
+        QMessageBox::warning(0,
+                             QObject::tr("警告"),
+                             QObject::tr("发送数据不能为空"));
+        return ;
+    }
+
+    if ( !(this->ack_data_sendp)) {
+        this->ack_data_sendp = new QUdpSocket;
+    }
+
+    QHostAddress host;
+    host.setAddress(host_ip);
+    this->ack_data_sendp->writeDatagram(byte, host, host_port);
+}
+
+void MainGui::on_p_btn_start_recv_err_toggled(bool flag)
+{
+    if ( flag) {
+        /* Start receive error information */
+        this->ui->p_btn_start_recv_err->setStyleSheet("background-color:green;");
+
+        this->p_err_task = new ErrRxTask(this->ui->p_spin_recv_err_port->value());
+        QObject::connect(this->p_err_task, SIGNAL(notify_err_frame(QByteArray)), this, SLOT(do_update_err_rx_msg(QByteArray)));
+        QObject::connect(this, SIGNAL(notify_err_stop_flag()), this->p_err_task,  SLOT(update_stop_flag()));
+        this->p_err_task->start();
+    } else {
+        this->ui->p_btn_start_recv_err->setStyleSheet("background-color:red;");
+
+        emit notify_err_stop_flag();
+        QObject::disconnect(this->p_err_task, SIGNAL(notify_err_frame(QByteArray)), this, SLOT(do_update_err_rx_msg(QByteArray)));
+        QObject::disconnect(this, SIGNAL(notify_err_stop_flag()), this->p_err_task, SLOT(update_stop_flag()));
+
+        this->p_err_task->quit();
+        this->p_err_task->wait(10);
+
+        delete this->p_err_task;
+    }
+}
+
+void MainGui::on_p_btn_clear_recv_err_clicked()
+{
+    this->ui->p_tab_rx_err->setRowCount(0);
+}
+
+void MainGui::do_send_back_ack_data(int index)
+{
+    QByteArray  byte;
+    QStringList byte_list;
+
+    switch (index) {
+
+    case MainGui::PRJ_ACK:
+        /* 工程参数回传 */
+        byte_list = this->ui->p_text_prj_para_ack->toPlainText().split(" ");
+        for (size_t i = 0; i < byte_list.size(); ++i) {
+            byte.append(byte_list.at(i).toInt(0, 16));
+        }
+        this->prj_ack_tx_cnt++;
+        this->ui->p_label_prj_cnt->setText(QString("%1").arg(this->prj_ack_tx_cnt));
+        break;
+
+    case MainGui::BAK_ACK:
+        /* 备份参数回传 */
+        byte_list = this->ui->p_text_bak_para_ack->toPlainText().split(" ");
+        for (size_t i = 0; i < byte_list.size(); ++i) {
+            byte.append(byte_list.at(i).toInt(0, 16));
+        }
+        this->bak_ack_tx_cnt++;
+        this->ui->p_label_bak_cnt->setText(QString("%1").arg(this->bak_ack_tx_cnt));
+        break;
+
+    case MainGui::TM_ACK:
+        /* 遥测参数回传 */
+        byte_list = this->ui->p_text_tm_para_ack->toPlainText().split(" ");
+        for (size_t i = 0; i < byte_list.size(); ++i) {
+            byte.append(byte_list.at(i).toInt(0, 16));
+        }
+        this->tm_ack_tx_cnt++;
+        this->ui->p_label_tm_cnt->setText(QString("%1").arg(this->tm_ack_tx_cnt));
+        break;
+
+    case MainGui::MEM_ACK:
+        /* 内存下卸回传 */
+        byte_list = this->ui->p_text_mem_down_ack->toPlainText().split(" ");
+        for (size_t i = 0; i < byte_list.size(); ++i) {
+            byte.append(byte_list.at(i).toInt(0, 16));
+        }
+        this->mem_ack_tx_cnt++;
+        this->ui->p_label_mem_cnt->setText(QString("%1").arg(this->mem_ack_tx_cnt));
+        break;
+
+    case MainGui::BUS_MAN:
+        /* 总线管理维护 */
+        qDebug() << "bus manage.";
+        this->bus_man_tx_cnt++;
+        break;
+
+    default:
+        QMessageBox::warning(0,
+                             QObject::tr("警告"),
+                             QObject::tr("回传索引不正确"));
+    }
+
+    this->send_ack_data(this->ui->p_line_tx_ip->text(), this->ui->p_spin_tx_port->value(), byte);
 }

@@ -13,7 +13,7 @@
   <property name="windowTitle">
    <string>Form</string>
   </property>
-  <layout class="QVBoxLayout" name="verticalLayout_10">
+  <layout class="QVBoxLayout" name="verticalLayout_16">
    <item>
     <widget class="QGroupBox" name="groupBox_5">
      <property name="title">
@@ -34,7 +34,7 @@ border-color: qradialgradient(spread:repeat, cx:0.5, cy:0.5, radius:0.077, fx:0.
 font: 75 16pt &quot;微软雅黑&quot;;</string>
            </property>
            <property name="text">
-            <string>CAN高层协议验证 -- V1.0</string>
+            <string>CAN高层协议验证 -- V1.1</string>
            </property>
           </widget>
          </item>
@@ -53,17 +53,17 @@ selection-color: qlineargradient(spread:pad, x1:0, y1:0, x2:0, y2:1, stop:0 rgba
     </widget>
    </item>
    <item>
-    <layout class="QHBoxLayout" name="horizontalLayout_13">
+    <layout class="QHBoxLayout" name="horizontalLayout_18">
      <item>
       <widget class="QGroupBox" name="groupBox_6">
        <property name="title">
         <string/>
        </property>
-       <layout class="QVBoxLayout" name="verticalLayout_9">
+       <layout class="QVBoxLayout" name="verticalLayout_15">
         <item>
          <widget class="QTabWidget" name="p_tab_widget">
           <property name="currentIndex">
-           <number>2</number>
+           <number>1</number>
           </property>
           <widget class="QWidget" name="tab">
            <attribute name="title">
@@ -115,6 +115,180 @@ selection-color: qlineargradient(spread:pad, x1:0, y1:0, x2:0, y2:1, stop:0 rgba
            <attribute name="title">
             <string>发送</string>
            </attribute>
+           <layout class="QHBoxLayout" name="horizontalLayout_17">
+            <item>
+             <widget class="QGroupBox" name="groupBox_18">
+              <property name="title">
+               <string>工程参数回传</string>
+              </property>
+              <layout class="QVBoxLayout" name="verticalLayout_9">
+               <item>
+                <widget class="QTextEdit" name="p_text_prj_para_ack">
+                 <property name="maximumSize">
+                  <size>
+                   <width>200</width>
+                   <height>16777215</height>
+                  </size>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <layout class="QHBoxLayout" name="horizontalLayout_13">
+                 <item>
+                  <widget class="QLabel" name="label_32">
+                   <property name="text">
+                    <string>回传次数：</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
+                  <widget class="QLabel" name="p_label_prj_cnt">
+                   <property name="frameShape">
+                    <enum>QFrame::Panel</enum>
+                   </property>
+                   <property name="frameShadow">
+                    <enum>QFrame::Sunken</enum>
+                   </property>
+                   <property name="text">
+                    <string/>
+                   </property>
+                  </widget>
+                 </item>
+                </layout>
+               </item>
+              </layout>
+             </widget>
+            </item>
+            <item>
+             <widget class="QGroupBox" name="groupBox_19">
+              <property name="title">
+               <string>备份参数回传</string>
+              </property>
+              <layout class="QVBoxLayout" name="verticalLayout_11">
+               <item>
+                <widget class="QTextEdit" name="p_text_bak_para_ack">
+                 <property name="maximumSize">
+                  <size>
+                   <width>200</width>
+                   <height>16777215</height>
+                  </size>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <layout class="QHBoxLayout" name="horizontalLayout_14">
+                 <item>
+                  <widget class="QLabel" name="label_34">
+                   <property name="text">
+                    <string>回传次数：</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
+                  <widget class="QLabel" name="p_label_bak_cnt">
+                   <property name="frameShape">
+                    <enum>QFrame::Panel</enum>
+                   </property>
+                   <property name="frameShadow">
+                    <enum>QFrame::Sunken</enum>
+                   </property>
+                   <property name="text">
+                    <string/>
+                   </property>
+                  </widget>
+                 </item>
+                </layout>
+               </item>
+              </layout>
+             </widget>
+            </item>
+            <item>
+             <widget class="QGroupBox" name="groupBox_20">
+              <property name="title">
+               <string>遥测参数回传</string>
+              </property>
+              <layout class="QVBoxLayout" name="verticalLayout_13">
+               <item>
+                <widget class="QTextEdit" name="p_text_tm_para_ack">
+                 <property name="maximumSize">
+                  <size>
+                   <width>200</width>
+                   <height>16777215</height>
+                  </size>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <layout class="QHBoxLayout" name="horizontalLayout_15">
+                 <item>
+                  <widget class="QLabel" name="label_36">
+                   <property name="text">
+                    <string>回传次数：</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
+                  <widget class="QLabel" name="p_label_tm_cnt">
+                   <property name="frameShape">
+                    <enum>QFrame::Panel</enum>
+                   </property>
+                   <property name="frameShadow">
+                    <enum>QFrame::Sunken</enum>
+                   </property>
+                   <property name="text">
+                    <string/>
+                   </property>
+                  </widget>
+                 </item>
+                </layout>
+               </item>
+              </layout>
+             </widget>
+            </item>
+            <item>
+             <widget class="QGroupBox" name="groupBox_21">
+              <property name="title">
+               <string>内存下卸回传</string>
+              </property>
+              <layout class="QVBoxLayout" name="verticalLayout_14">
+               <item>
+                <widget class="QTextEdit" name="p_text_mem_down_ack">
+                 <property name="maximumSize">
+                  <size>
+                   <width>200</width>
+                   <height>16777215</height>
+                  </size>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <layout class="QHBoxLayout" name="horizontalLayout_16">
+                 <item>
+                  <widget class="QLabel" name="label_38">
+                   <property name="text">
+                    <string>回传次数：</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
+                  <widget class="QLabel" name="p_label_mem_cnt">
+                   <property name="frameShape">
+                    <enum>QFrame::Panel</enum>
+                   </property>
+                   <property name="frameShadow">
+                    <enum>QFrame::Sunken</enum>
+                   </property>
+                   <property name="text">
+                    <string/>
+                   </property>
+                  </widget>
+                 </item>
+                </layout>
+               </item>
+              </layout>
+             </widget>
+            </item>
+           </layout>
           </widget>
           <widget class="QWidget" name="tab_3">
            <attribute name="title">
@@ -578,6 +752,47 @@ selection-color: qlineargradient(spread:pad, x1:0, y1:0, x2:0, y2:1, stop:0 rgba
             </item>
            </layout>
           </widget>
+          <widget class="QWidget" name="tab_4">
+           <attribute name="title">
+            <string>错误信息</string>
+           </attribute>
+           <layout class="QVBoxLayout" name="verticalLayout_12">
+            <item>
+             <widget class="QTableWidget" name="p_tab_rx_err">
+              <column>
+               <property name="text">
+                <string>类型码</string>
+               </property>
+              </column>
+              <column>
+               <property name="text">
+                <string>错误码</string>
+               </property>
+              </column>
+              <column>
+               <property name="text">
+                <string>文件名</string>
+               </property>
+              </column>
+              <column>
+               <property name="text">
+                <string>函数名</string>
+               </property>
+              </column>
+              <column>
+               <property name="text">
+                <string>行数</string>
+               </property>
+              </column>
+              <column>
+               <property name="text">
+                <string>错误描述</string>
+               </property>
+              </column>
+             </widget>
+            </item>
+           </layout>
+          </widget>
          </widget>
         </item>
         <item>
@@ -632,7 +847,7 @@ selection-color: qlineargradient(spread:pad, x1:0, y1:0, x2:0, y2:1, stop:0 rgba
        <property name="title">
         <string/>
        </property>
-       <layout class="QVBoxLayout" name="verticalLayout_4">
+       <layout class="QVBoxLayout" name="verticalLayout_10">
         <item>
          <widget class="QGroupBox" name="groupBox_2">
           <property name="title">
@@ -757,6 +972,49 @@ selection-color: qlineargradient(spread:pad, x1:0, y1:0, x2:0, y2:1, stop:0 rgba
          </widget>
         </item>
         <item>
+         <widget class="QGroupBox" name="groupBox_17">
+          <property name="title">
+           <string>接收错误</string>
+          </property>
+          <layout class="QVBoxLayout" name="verticalLayout_4">
+           <item>
+            <widget class="QLabel" name="label_31">
+             <property name="text">
+              <string>监听端口</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QSpinBox" name="p_spin_recv_err_port">
+             <property name="minimum">
+              <number>1000</number>
+             </property>
+             <property name="maximum">
+              <number>999999</number>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="p_btn_start_recv_err">
+             <property name="text">
+              <string>启动错误接收</string>
+             </property>
+             <property name="checkable">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="p_btn_clear_recv_err">
+             <property name="text">
+              <string>清除错误</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
+        <item>
          <spacer name="verticalSpacer">
           <property name="orientation">
            <enum>Qt::Vertical</enum>
@@ -764,7 +1022,7 @@ selection-color: qlineargradient(spread:pad, x1:0, y1:0, x2:0, y2:1, stop:0 rgba
           <property name="sizeHint" stdset="0">
            <size>
             <width>20</width>
-            <height>188</height>
+            <height>138</height>
            </size>
           </property>
          </spacer>

@@ -5,6 +5,9 @@
 #include "ui_maingui.h"
 #include "sockcanframe.h"
 #include "rxtask.h"
+#include "errrxtask.h"
+
+#include <QtNetwork/QUdpSocket>
 
 class QTimer;
 
@@ -17,11 +20,12 @@ public:
     
 signals:
     void notify_change_stop_flag(void);
+    void notify_err_stop_flag(void);
+    void notify_ack_data(int index);
     
 public slots:
     void do_update_current_time(void);
     void do_rx_msg(bool flag);
-//    void do_update_rx_msg(const SockCanFrame *frame);
     void do_update_rx_msg(const QByteArray &byte);
 
     void on_p_btn_id_convert_clicked(void);
@@ -37,12 +41,23 @@ public slots:
     void on_p_btn_oid_direction_toggled(bool);
 
     void on_p_btn_clear_rx_clicked(void);
+
+    void do_update_err_rx_msg(const QByteArray &byte);
+    void on_p_btn_start_recv_err_toggled(bool);
+    void on_p_btn_clear_recv_err_clicked(void);
+
+    void do_send_back_ack_data(int index);
     
 private:
     Ui::MainGUI *ui;
     QTimer      *timer_500ms;
 
-    enum {TIMER_500MS = 500};
+    enum {TIMER_500MS = 500,
+          PRJ_ACK     = 0x1,
+          BAK_ACK     = 0x2,
+          TM_ACK      = 0x3,
+          MEM_ACK     = 0x4,
+          BUS_MAN     = 0x5};
     SockCanFrame *psock_can_frame;
     bool          is_start;
     bool          is_finish;
@@ -57,9 +72,19 @@ private:
     void change_btn_color(bool flag);
     void data_handle(const QByteArray &byte);
     void update_data_tables(void);
+    void send_ack_data(const QString &host_ip, ushort host_port, const QByteArray &byte);
 
 private:
-    RxTask *p_task;
+    RxTask    *p_task;
+    ErrRxTask *p_err_task;
+
+    QUdpSocket *ack_data_sendp;
+
+    uint        prj_ack_tx_cnt;
+    uint        bak_ack_tx_cnt;
+    uint        tm_ack_tx_cnt;
+    uint        mem_ack_tx_cnt;
+    uint        bus_man_tx_cnt;
 };
 
 #endif // MAINGUI_H
