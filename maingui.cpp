@@ -30,6 +30,11 @@ MainGui::~MainGui()
     delete p_task;
 }
 
+bool MainGui::is_need_ack()
+{
+    return (this->ui->p_btn_start_tx->isChecked());
+}
+
 void MainGui::do_update_current_time(void)
 {
     this->ui->p_datetime_display->display(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss.zzz"));
@@ -520,6 +525,8 @@ void MainGui::init_widget()
     this->ui->p_spin_recv_err_port->setValue(55000);
     this->ui->p_spin_tx_port->setRange(1000, 99999);
     this->ui->p_spin_tx_port->setValue(55008);
+
+    this->ui->p_line_tx_ip->setText("192.168.7.34");
 }
 
 void MainGui::init_object()
@@ -669,7 +676,9 @@ void MainGui::data_handle(const QByteArray &byte)
 
             case SockCanData::TM_TRANS:
                 /* 需要遥测回传 */
-                emit notify_ack_data(MainGui::TM_ACK);
+                if ( this->is_need_ack()) {
+                    emit notify_ack_data(MainGui::TM_ACK);
+                }
                 trans_service = QString("%1/%2").arg(QObject::tr("遥测传输服务")).arg(this->psock_can_frame->get_type());
                 break;
 
@@ -679,13 +688,17 @@ void MainGui::data_handle(const QByteArray &byte)
 
             case SockCanData::MEM_DOWN:
                 /* 需要内存下卸回传 */
-                emit notify_ack_data(MainGui::MEM_ACK);
+                if ( this->is_need_ack()) {
+                    emit notify_ack_data(MainGui::MEM_ACK);
+                }
                 trans_service = QString("%1/%2").arg(QObject::tr("内存下载服务")).arg(this->psock_can_frame->get_type());
                 break;
 
             case SockCanData::BUS_MANAGE:
                 /* 需要回复总线管理 */
-                emit notify_ack_data(MainGui::BUS_MAN);
+                if ( this->is_need_ack()) {
+                    emit notify_ack_data(MainGui::BUS_MAN);
+                }
                 trans_service = QString("%1/%2").arg(QObject::tr("总线管理维护服务")).arg(this->psock_can_frame->get_type());
                 break;
 
@@ -704,10 +717,12 @@ void MainGui::data_handle(const QByteArray &byte)
             this->byte_cnt += 8;
         } else if ( (this->is_start) && (sock_can_data.is_last_frame())) {
             /* Last frame */
-            if ( ((uchar)(*p_new_tmp) == 0x3C) && ((uchar)(*(p_new_tmp + 1)) == 0x11)) {
-                emit notify_ack_data(MainGui::PRJ_ACK);
-            } else if ( ((uchar)(*p_new_tmp) == 0x3C) && ((uchar)(*(p_new_tmp + 1)) == 0x55)) {
-                emit notify_ack_data(MainGui::BAK_ACK);
+            if ( this->is_need_ack()) {
+                if ( ((uchar)(*p_new_tmp) == 0x3C) && ((uchar)(*(p_new_tmp + 1)) == 0x11)) {
+                    emit notify_ack_data(MainGui::PRJ_ACK);
+                } else if ( ((uchar)(*p_new_tmp) == 0x3C) && ((uchar)(*(p_new_tmp + 1)) == 0x55)) {
+                    emit notify_ack_data(MainGui::BAK_ACK);
+                }
             }
 
             uint byte_left          = this->psock_can_frame->get_len_value() - this->byte_cnt;
@@ -889,4 +904,17 @@ void MainGui::do_send_back_ack_data(int index)
     }
 
     this->send_ack_data(this->ui->p_line_tx_ip->text(), this->ui->p_spin_tx_port->value(), byte);
+}
+
+void MainGui::on_p_btn_start_tx_toggled(bool flag)
+{
+    if ( flag) {
+        /* 回传 */
+        this->ui->p_btn_start_tx->setStyleSheet("background-color:green;");
+        this->ui->p_btn_start_tx->setText(QObject::tr("正在回传..."));
+    } else {
+        /* 不需要回传 */
+        this->ui->p_btn_start_tx->setStyleSheet("background-color:red;");
+        this->ui->p_btn_start_tx->setText(QObject::tr("停止回传"));
+    }
 }

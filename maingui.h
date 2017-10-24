@@ -17,6 +17,8 @@ class MainGui : public QWidget
 public:
     explicit MainGui(QWidget *parent = 0);
     ~MainGui();
+
+    bool is_need_ack(void);
     
 signals:
     void notify_change_stop_flag(void);
@@ -47,6 +49,8 @@ public slots:
     void on_p_btn_clear_recv_err_clicked(void);
 
     void do_send_back_ack_data(int index);
+
+    void on_p_btn_start_tx_toggled(bool);
     
 private:
     Ui::MainGUI *ui;
