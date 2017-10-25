@@ -139,7 +139,7 @@ public:
 
         uchar *p_data = (uchar *)byte.data();
 
-        *p_data = (arbit.reserve<<5) | (arbit.identify_code<<2) | (arbit.ctrl_code);
+        *p_data++ = (arbit.reserve<<5) | (arbit.identify_code<<2) | (arbit.ctrl_code);
 
         if ( SockCanData::DEV_IDENTIFY == arbit.identify_code)  {
             *p_data++ = (arbit.user_code.dev_oid_hi&0xFF0000) >> 16;

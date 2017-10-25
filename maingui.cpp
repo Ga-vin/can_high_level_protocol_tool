@@ -556,7 +556,7 @@ void MainGui::init_timer()
 void MainGui::make_connections()
 {
     QObject::connect(this->ui->p_btn_start_rx, SIGNAL(toggled(bool)), this, SLOT(do_rx_msg(bool)));
-    QObject::connect(this, SIGNAL(notify_ack_data(int)), this, SLOT(do_send_back_ack_data(int)));
+    QObject::connect(this, SIGNAL(notify_ack_data(int, uchar, uchar)), this, SLOT(do_send_back_ack_data(int, uchar, uchar)));
 }
 
 void MainGui::change_btn_color(bool flag)
@@ -677,7 +677,7 @@ void MainGui::data_handle(const QByteArray &byte)
             case SockCanData::TM_TRANS:
                 /* 需要遥测回传 */
                 if ( this->is_need_ack()) {
-                    emit notify_ack_data(MainGui::TM_ACK);
+                    emit notify_ack_data(MainGui::TM_ACK, this->psock_can_frame->get_src_orig(), this->psock_can_frame->get_dest_orig());
                 }
                 trans_service = QString("%1/%2").arg(QObject::tr("遥测传输服务")).arg(this->psock_can_frame->get_type());
                 break;
@@ -689,7 +689,7 @@ void MainGui::data_handle(const QByteArray &byte)
             case SockCanData::MEM_DOWN:
                 /* 需要内存下卸回传 */
                 if ( this->is_need_ack()) {
-                    emit notify_ack_data(MainGui::MEM_ACK);
+                    emit notify_ack_data(MainGui::MEM_ACK, this->psock_can_frame->get_src_orig(), this->psock_can_frame->get_dest_orig());
                 }
                 trans_service = QString("%1/%2").arg(QObject::tr("内存下载服务")).arg(this->psock_can_frame->get_type());
                 break;
@@ -697,7 +697,7 @@ void MainGui::data_handle(const QByteArray &byte)
             case SockCanData::BUS_MANAGE:
                 /* 需要回复总线管理 */
                 if ( this->is_need_ack()) {
-                    emit notify_ack_data(MainGui::BUS_MAN);
+                    emit notify_ack_data(MainGui::BUS_MAN, this->psock_can_frame->get_src_orig(), this->psock_can_frame->get_dest_orig());
                 }
                 trans_service = QString("%1/%2").arg(QObject::tr("总线管理维护服务")).arg(this->psock_can_frame->get_type());
                 break;
@@ -719,9 +719,9 @@ void MainGui::data_handle(const QByteArray &byte)
             /* Last frame */
             if ( this->is_need_ack()) {
                 if ( ((uchar)(*p_new_tmp) == 0x3C) && ((uchar)(*(p_new_tmp + 1)) == 0x11)) {
-                    emit notify_ack_data(MainGui::PRJ_ACK);
+                    emit notify_ack_data(MainGui::PRJ_ACK, this->psock_can_frame->get_src_orig(), this->psock_can_frame->get_dest_orig());
                 } else if ( ((uchar)(*p_new_tmp) == 0x3C) && ((uchar)(*(p_new_tmp + 1)) == 0x55)) {
-                    emit notify_ack_data(MainGui::BAK_ACK);
+                    emit notify_ack_data(MainGui::BAK_ACK, this->psock_can_frame->get_src_orig(), this->psock_can_frame->get_dest_orig());
                 }
             }
 
@@ -783,8 +783,20 @@ void MainGui::update_data_tables()
     }
 }
 
-void MainGui::send_ack_data(const QString &host_ip, ushort host_port, const QByteArray &byte)
+void MainGui::send_ack_data(const QString &host_ip, ushort host_port, const QByteArray &byte, arbit_header_t arbit, can_msg_header_t header)
 {
+    QByteArray tmp_byte = SockCanFrame::header_to_byte(header);
+    uint       send_len = header.len;
+    ushort     data_chk = SockCanFrame::calc_chksum_16((ushort *)(byte.data()), byte.size()/2);
+
+    QByteArray data_send = SockCanFrame::header_to_byte(header);
+    data_send.append(byte);
+    data_send.append((char)((data_chk&0xFF00)>>8));
+    data_send.append((char)(data_chk&0xFF));
+
+    //qDebug() << "TX-DATA: " << SockCanData::bytearray_to_hex_str(data_send);
+
+#if 1
     if ( host_ip.isEmpty()) {
         QMessageBox::warning(0,
                              QObject::tr("警告"),
@@ -810,9 +822,98 @@ void MainGui::send_ack_data(const QString &host_ip, ushort host_port, const QByt
         this->ack_data_sendp = new QUdpSocket;
     }
 
+    uint         send_cnt  = send_len / 8;
+    uint         send_left = send_len % 8;
+    uint         i, j;
+    QByteArray   send_split;
     QHostAddress host;
     host.setAddress(host_ip);
-    this->ack_data_sendp->writeDatagram(byte, host, host_port);
+    uchar       *datap = (uchar *)data_send.data();
+
+    for (i = 0; i < send_cnt; ++i) {
+        if ( !send_left && (i == (send_cnt - 1))) {
+            arbit.user_code.defined.frame_cnt = 0xFF;
+        } else {
+            arbit.user_code.defined.frame_cnt = i + 1;
+        }
+
+        /* id : uint32_t */
+        send_split = SockCanData::arbit_to_byte(arbit);
+
+        /* channel : uint32_t */
+        send_split.append((char)(0x0));
+        send_split.append((char)(0x0));
+        send_split.append((char)(0x0));
+        send_split.append((char)(0x0));
+
+        /* ext : bool */
+        send_split.append((char)(0x0));
+        send_split.append((char)(0x0));
+        send_split.append((char)(0x0));
+        send_split.append((char)(0x1));
+
+        /* rtr : bool */
+        send_split.append((char)(0x0));
+        send_split.append((char)(0x0));
+        send_split.append((char)(0x0));
+        send_split.append((char)(0x0));
+
+        /* len : uint8_t*/
+        send_split.append((char)(0x8));
+
+        /* data : uint8_t */
+        for (j = 0; j < 8; ++j) {
+            //send_split.append(data_send.at(i*8 + j));
+            send_split.append(*(datap + i*8 + j));
+        }
+
+        qDebug() << "[i" << i << "] = " << SockCanData::bytearray_to_hex_str(send_split);
+        this->ack_data_sendp->writeDatagram(send_split, host, host_port);
+        send_split.clear();
+    }
+
+    if ( send_left) {
+        arbit.user_code.defined.frame_cnt = 0xFF;
+
+        /* id : uint32_t */
+        send_split = SockCanData::arbit_to_byte(arbit);
+
+        /* channel : uint32_t */
+        send_split.append((char)(0x0));
+        send_split.append((char)(0x0));
+        send_split.append((char)(0x0));
+        send_split.append((char)(0x0));
+
+        /* ext : bool */
+        send_split.append((char)(0x0));
+        send_split.append((char)(0x0));
+        send_split.append((char)(0x0));
+        send_split.append((char)(0x1));
+
+        /* rtr : bool */
+        send_split.append((char)(0x0));
+        send_split.append((char)(0x0));
+        send_split.append((char)(0x0));
+        send_split.append((char)(0x0));
+
+        /* len : uint8_t*/
+        send_split.append(0x8);
+
+        /* data : uint8_t */
+        for (j = 0; j < send_left; ++j) {
+            //send_split.append(data_send.at(i*8 + j));
+            send_split.append(*(datap + i*8 + j));
+        }
+
+        for (j = send_left; j < 8; ++j) {
+            send_split.append(0xFF);
+        }
+
+        qDebug() << "[left-" << send_left << "] = " << SockCanData::bytearray_to_hex_str(send_split);
+        this->ack_data_sendp->writeDatagram(send_split, host, host_port);
+        send_split.clear();
+    }
+#endif
 }
 
 void MainGui::on_p_btn_start_recv_err_toggled(bool flag)
@@ -844,49 +945,110 @@ void MainGui::on_p_btn_clear_recv_err_clicked()
     this->ui->p_tab_rx_err->setRowCount(0);
 }
 
-void MainGui::do_send_back_ack_data(int index)
+void MainGui::do_send_back_ack_data(int index, uchar src, uchar dest)
 {
-    QByteArray  byte;
-    QStringList byte_list;
+    QByteArray       byte;
+    QStringList      byte_list;
+    arbit_header_t   arbit_id;
+    can_msg_header_t header;
+
+    memset(&arbit_id, 0, sizeof(arbit_header_t));
+    memset(&header,   0, sizeof(can_msg_header_t));
+
+    arbit_id.user_code.defined.src_nid   = dest;
+    arbit_id.user_code.defined.dest_nid  = src;
+    arbit_id.user_code.defined.frame_cnt = 0x0;
+    arbit_id.reserve                     = 0x0;
+
+    header.version                       = 0x1;
+    header.reserve1                      = 0x3;
+    header.reserve2                      = 0xFFFF;
+    header.ctrl                          = 0xF;
+    header.src                           = dest;
+    header.dest                          = src;
 
     switch (index) {
 
     case MainGui::PRJ_ACK:
         /* 工程参数回传 */
-        byte_list = this->ui->p_text_prj_para_ack->toPlainText().split(" ");
-        for (size_t i = 0; i < byte_list.size(); ++i) {
-            byte.append(byte_list.at(i).toInt(0, 16));
+        byte.append((char)(0x3C));
+        byte.append((char)(0x22));
+        if ( this->ui->p_text_prj_para_ack->toPlainText().isEmpty()) {
+            byte.resize(0);
+        } else {
+            byte_list = this->ui->p_text_prj_para_ack->toPlainText().split(" ");
+            for (size_t i = 0; i < byte_list.size(); ++i) {
+                byte.append(byte_list.at(i).toInt(0, 16));
+            }
         }
+
+        arbit_id.identify_code = SockCanData::DATA_TRANSMISSION;
+        arbit_id.ctrl_code     = SockCanFrame::TX_NO_ACK;
+        header.tran            = SockCanData::INFO_TRANS;
+        header.len             = 8 + 2 + byte_list.size() + 2;
+
         this->prj_ack_tx_cnt++;
         this->ui->p_label_prj_cnt->setText(QString("%1").arg(this->prj_ack_tx_cnt));
         break;
 
     case MainGui::BAK_ACK:
         /* 备份参数回传 */
-        byte_list = this->ui->p_text_bak_para_ack->toPlainText().split(" ");
-        for (size_t i = 0; i < byte_list.size(); ++i) {
-            byte.append(byte_list.at(i).toInt(0, 16));
+        byte.append((char)(0x3C));
+        byte.append((char)(0x66));
+        if ( this->ui->p_text_bak_para_ack->toPlainText().isEmpty()) {
+            byte.resize(0);
+        } else {
+            byte_list = this->ui->p_text_bak_para_ack->toPlainText().split(" ");
+            for (size_t i = 0; i < byte_list.size(); ++i) {
+                byte.append(byte_list.at(i).toInt(0, 16));
+            }
         }
+
+        arbit_id.identify_code = SockCanData::DATA_TRANSMISSION;
+        arbit_id.ctrl_code     = SockCanFrame::TX_NO_ACK;
+        header.tran            = SockCanData::INFO_TRANS;
+        header.len             = 8 + 2 + byte_list.size() + 2;
+
         this->bak_ack_tx_cnt++;
         this->ui->p_label_bak_cnt->setText(QString("%1").arg(this->bak_ack_tx_cnt));
         break;
 
     case MainGui::TM_ACK:
         /* 遥测参数回传 */
-        byte_list = this->ui->p_text_tm_para_ack->toPlainText().split(" ");
-        for (size_t i = 0; i < byte_list.size(); ++i) {
-            byte.append(byte_list.at(i).toInt(0, 16));
+        if ( this->ui->p_text_tm_para_ack->toPlainText().isEmpty()) {
+            byte.resize(0);
+        } else {
+            byte_list = this->ui->p_text_tm_para_ack->toPlainText().split(" ");
+            for (size_t i = 0; i < byte_list.size(); ++i) {
+                byte.append(byte_list.at(i).toInt(0, 16));
+            }
         }
+
+        arbit_id.identify_code = SockCanData::DATA_TRANSMISSION;
+        arbit_id.ctrl_code     = SockCanFrame::TX_NO_ACK;
+        header.tran            = SockCanData::TM_TRANS;
+        header.len             = 8 + byte_list.size() + 2;
+
         this->tm_ack_tx_cnt++;
         this->ui->p_label_tm_cnt->setText(QString("%1").arg(this->tm_ack_tx_cnt));
         break;
 
     case MainGui::MEM_ACK:
         /* 内存下卸回传 */
-        byte_list = this->ui->p_text_mem_down_ack->toPlainText().split(" ");
-        for (size_t i = 0; i < byte_list.size(); ++i) {
-            byte.append(byte_list.at(i).toInt(0, 16));
+        if ( this->ui->p_text_mem_down_ack->toPlainText().isEmpty()) {
+            byte.resize(0);
+        } else {
+            byte_list = this->ui->p_text_mem_down_ack->toPlainText().split(" ");
+            for (size_t i = 0; i < byte_list.size(); ++i) {
+                byte.append(byte_list.at(i).toInt(0, 16));
+            }
         }
+
+        arbit_id.identify_code = SockCanData::DATA_TRANSMISSION;
+        arbit_id.ctrl_code     = SockCanFrame::TX_NO_ACK;
+        header.tran            = SockCanData::MEM_DOWN;
+        header.len             = 8 + byte_list.size() + 2;
+
         this->mem_ack_tx_cnt++;
         this->ui->p_label_mem_cnt->setText(QString("%1").arg(this->mem_ack_tx_cnt));
         break;
@@ -894,6 +1056,11 @@ void MainGui::do_send_back_ack_data(int index)
     case MainGui::BUS_MAN:
         /* 总线管理维护 */
         qDebug() << "bus manage.";
+
+        arbit_id.identify_code = SockCanData::DATA_TRANSMISSION;
+        arbit_id.ctrl_code     = SockCanFrame::RX_ACK;
+        header.tran            = SockCanData::BUS_MANAGE;
+        header.len             = 8;
         this->bus_man_tx_cnt++;
         break;
 
@@ -903,7 +1070,7 @@ void MainGui::do_send_back_ack_data(int index)
                              QObject::tr("回传索引不正确"));
     }
 
-    this->send_ack_data(this->ui->p_line_tx_ip->text(), this->ui->p_spin_tx_port->value(), byte);
+    this->send_ack_data(this->ui->p_line_tx_ip->text(), this->ui->p_spin_tx_port->value(), byte, arbit_id, header);
 }
 
 void MainGui::on_p_btn_start_tx_toggled(bool flag)

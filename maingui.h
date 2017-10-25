@@ -24,6 +24,7 @@ signals:
     void notify_change_stop_flag(void);
     void notify_err_stop_flag(void);
     void notify_ack_data(int index);
+    void notify_ack_data(int index, uchar src, uchar dest);
     
 public slots:
     void do_update_current_time(void);
@@ -48,7 +49,7 @@ public slots:
     void on_p_btn_start_recv_err_toggled(bool);
     void on_p_btn_clear_recv_err_clicked(void);
 
-    void do_send_back_ack_data(int index);
+    void do_send_back_ack_data(int index, uchar src, uchar dest);
 
     void on_p_btn_start_tx_toggled(bool);
     
@@ -76,7 +77,7 @@ private:
     void change_btn_color(bool flag);
     void data_handle(const QByteArray &byte);
     void update_data_tables(void);
-    void send_ack_data(const QString &host_ip, ushort host_port, const QByteArray &byte);
+    void send_ack_data(const QString &host_ip, ushort host_port, const QByteArray &byte, arbit_header_t arbit, can_msg_header_t header);
 
 private:
     RxTask    *p_task;

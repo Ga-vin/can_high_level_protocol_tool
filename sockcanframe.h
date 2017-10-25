@@ -190,18 +190,23 @@ public:
     static QByteArray header_to_byte(const can_msg_header_t header)
     {
         QByteArray byte;
+        uint8_t    chk;
         byte.resize(sizeof(can_msg_header_t));
 
         uchar *p_data = (uchar *)byte.data();
 
-        *p_data++ = (header.version<<5) | ((header.len&0x3C0)>>6);
-        *p_data++ = (header.len&0x03F)<<2 | (header.reserve1);
-        *p_data++ = (header.tran<<4) | (header.ctrl<<4);
+        *p_data++ = ((header.version&0x7)<<5) | ((header.len&0x7C0)>>6);
+        *p_data++ = (header.len&0x03F)<<2 | (header.reserve1&0x3);
+        *p_data++ = ((header.tran&0xF)<<4) | (header.ctrl&0xF);
         *p_data++ = header.src;
         *p_data++ = header.dest;
         *p_data++ = (header.reserve2&0xFF00) >> 8;
         *p_data++ = (header.reserve2&0x00FF);
-        *p_data   = header.chk;
+
+        chk       = SockCanFrame::calc_chksum((uchar *)byte.data(), 7);
+        *p_data   = chk;
+
+        return (byte);
     }
 
     SockCanFrame& operator =(const SockCanFrame *obj);
