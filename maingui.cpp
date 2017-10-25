@@ -4,6 +4,7 @@
 #include <QDebug>
 #include <QTableWidgetItem>
 #include <QRegExpValidator>
+#include <QTime>
 #include "maingui.h"
 #include "sockcandata.h"
 #include "cerr.h"
@@ -38,6 +39,21 @@ bool MainGui::is_need_ack()
 void MainGui::do_update_current_time(void)
 {
     this->ui->p_datetime_display->display(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss.zzz"));
+}
+
+void MainGui::do_update_ack_data(void)
+{
+    this->ui->p_text_prj_para_ack->clear();
+    this->ui->p_text_prj_para_ack->insertPlainText(this->make_rand_data());
+
+    this->ui->p_text_bak_para_ack->clear();
+    this->ui->p_text_bak_para_ack->insertPlainText(this->make_rand_data());
+
+    this->ui->p_text_tm_para_ack->clear();
+    this->ui->p_text_tm_para_ack->insertPlainText(this->make_rand_data());
+
+    this->ui->p_text_mem_down_ack->clear();
+    this->ui->p_text_mem_down_ack->insertPlainText(this->make_rand_data());
 }
 
 void MainGui::do_rx_msg(bool flag)
@@ -542,6 +558,10 @@ void MainGui::init_object()
     this->tm_ack_tx_cnt   = 0;
     this->mem_ack_tx_cnt  = 0;
     this->bus_man_tx_cnt  = 0;
+
+    /* 初始化随机种子 */
+    QTime curr_time = QTime::currentTime();
+    qsrand(curr_time.msec() + curr_time.second() * 1000);
 }
 
 void MainGui::init_timer()
@@ -551,12 +571,17 @@ void MainGui::init_timer()
     QObject::connect(this->timer_500ms, SIGNAL(timeout()), this, SLOT(do_update_current_time()));
     this->timer_500ms->setInterval(MainGui::TIMER_500MS);
     this->timer_500ms->start();
+
+    timer_600ms = new QTimer;
+    this->timer_600ms->setInterval(MainGui::TIMER_600MS);
+    this->timer_600ms->start();
 }
 
 void MainGui::make_connections()
 {
     QObject::connect(this->ui->p_btn_start_rx, SIGNAL(toggled(bool)), this, SLOT(do_rx_msg(bool)));
     QObject::connect(this, SIGNAL(notify_ack_data(int, uchar, uchar)), this, SLOT(do_send_back_ack_data(int, uchar, uchar)));
+    QObject::connect(this->timer_600ms, SIGNAL(timeout()), this, SLOT(do_update_ack_data()));
 }
 
 void MainGui::change_btn_color(bool flag)
@@ -579,7 +604,6 @@ void MainGui::data_handle(const QByteArray &byte)
     char *p_new_tmp = (char *)(sock_can_data.can_data());
 
     if ( sock_can_data.is_device_identify_pro()) {
-        qDebug() << "device identify frame";
         /* 设备识别帧 */
         this->psock_can_frame->clear();
         this->is_start  = true;
@@ -591,7 +615,9 @@ void MainGui::data_handle(const QByteArray &byte)
         this->psock_can_frame->set_src(0xF0);
 
         if ( sock_can_data.is_dev_identify_broad()) {
-            qDebug() << "broad";
+            /* 回复上位机发送的广播设备识别帧 */
+            this->do_ack_dev_identify();
+
             this->psock_can_frame->set_dest(0xFF);
             uchar *p_data  = (uchar *)sock_can_data.can_data();
             uint   tmp_oid = sock_can_data.oid_upper();
@@ -785,7 +811,6 @@ void MainGui::update_data_tables()
 
 void MainGui::send_ack_data(const QString &host_ip, ushort host_port, const QByteArray &byte, arbit_header_t arbit, can_msg_header_t header)
 {
-    QByteArray tmp_byte = SockCanFrame::header_to_byte(header);
     uint       send_len = header.len;
     ushort     data_chk = SockCanFrame::calc_chksum_16((ushort *)(byte.data()), byte.size()/2);
 
@@ -794,9 +819,6 @@ void MainGui::send_ack_data(const QString &host_ip, ushort host_port, const QByt
     data_send.append((char)((data_chk&0xFF00)>>8));
     data_send.append((char)(data_chk&0xFF));
 
-    //qDebug() << "TX-DATA: " << SockCanData::bytearray_to_hex_str(data_send);
-
-#if 1
     if ( host_ip.isEmpty()) {
         QMessageBox::warning(0,
                              QObject::tr("警告"),
@@ -863,11 +885,9 @@ void MainGui::send_ack_data(const QString &host_ip, ushort host_port, const QByt
 
         /* data : uint8_t */
         for (j = 0; j < 8; ++j) {
-            //send_split.append(data_send.at(i*8 + j));
             send_split.append(*(datap + i*8 + j));
         }
 
-        qDebug() << "[i" << i << "] = " << SockCanData::bytearray_to_hex_str(send_split);
         this->ack_data_sendp->writeDatagram(send_split, host, host_port);
         send_split.clear();
     }
@@ -901,7 +921,6 @@ void MainGui::send_ack_data(const QString &host_ip, ushort host_port, const QByt
 
         /* data : uint8_t */
         for (j = 0; j < send_left; ++j) {
-            //send_split.append(data_send.at(i*8 + j));
             send_split.append(*(datap + i*8 + j));
         }
 
@@ -909,11 +928,26 @@ void MainGui::send_ack_data(const QString &host_ip, ushort host_port, const QByt
             send_split.append(0xFF);
         }
 
-        qDebug() << "[left-" << send_left << "] = " << SockCanData::bytearray_to_hex_str(send_split);
         this->ack_data_sendp->writeDatagram(send_split, host, host_port);
         send_split.clear();
     }
-#endif
+}
+
+QString MainGui::make_rand_data()
+{
+    int cnt;
+
+    do {
+        cnt = qrand() % 244;
+    } while ( (cnt == 0) || (cnt%2));
+
+    QByteArray byte;
+    for (int i = 0; i < cnt; ++i) {
+        byte.append(qrand() % 256);
+    }
+    QString str = SockCanData::bytearray_to_hex_str(byte);
+
+    return (str);
 }
 
 void MainGui::on_p_btn_start_recv_err_toggled(bool flag)
@@ -1084,4 +1118,47 @@ void MainGui::on_p_btn_start_tx_toggled(bool flag)
         this->ui->p_btn_start_tx->setStyleSheet("background-color:red;");
         this->ui->p_btn_start_tx->setText(QObject::tr("停止回传"));
     }
+}
+
+void MainGui::do_ack_dev_identify(void)
+{
+    QByteArray     byte;
+    arbit_header_t arbit;
+
+    arbit.identify_code = SockCanData::DEV_IDENTIFY;
+    arbit.ctrl_code     = SockCanFrame::DEV_IDENTIFY_REQ;
+    arbit.user_code.dev_oid_hi = 0x003456;
+
+    /* ID */
+    byte.append(SockCanData::arbit_to_byte(arbit));
+
+    /* Channel */
+    byte.append((char)(0x0));
+    byte.append((char)(0x0));
+    byte.append((char)(0x0));
+    byte.append((char)(0x0));
+
+    /* Ext */
+    byte.append((char)(0x0));
+    byte.append((char)(0x0));
+    byte.append((char)(0x0));
+    byte.append((char)(0x1));
+
+    /* Rtr */
+    byte.append((char)(0x0));
+    byte.append((char)(0x0));
+    byte.append((char)(0x0));
+    byte.append((char)(0x0));
+
+    /* Len */
+    byte.append((char)(0x3));
+
+    /* Data */
+    byte.append((char)(0x78));
+    byte.append((char)(0x9A));
+    byte.append((char)(0xBC));
+
+    QHostAddress host;
+    host.setAddress("192.168.7.34");
+    this->ack_data_sendp->writeDatagram(byte, host, 55008);
 }

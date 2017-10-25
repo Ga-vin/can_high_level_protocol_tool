@@ -28,6 +28,8 @@ signals:
     
 public slots:
     void do_update_current_time(void);
+    void do_update_ack_data(void);
+
     void do_rx_msg(bool flag);
     void do_update_rx_msg(const QByteArray &byte);
 
@@ -52,12 +54,16 @@ public slots:
     void do_send_back_ack_data(int index, uchar src, uchar dest);
 
     void on_p_btn_start_tx_toggled(bool);
+
+    void do_ack_dev_identify(void);
     
 private:
     Ui::MainGUI *ui;
     QTimer      *timer_500ms;
+    QTimer      *timer_600ms;
 
     enum {TIMER_500MS = 500,
+          TIMER_600MS = 600,
           PRJ_ACK     = 0x1,
           BAK_ACK     = 0x2,
           TM_ACK      = 0x3,
@@ -78,6 +84,7 @@ private:
     void data_handle(const QByteArray &byte);
     void update_data_tables(void);
     void send_ack_data(const QString &host_ip, ushort host_port, const QByteArray &byte, arbit_header_t arbit, can_msg_header_t header);
+    QString make_rand_data(void);
 
 private:
     RxTask    *p_task;

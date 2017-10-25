@@ -161,13 +161,10 @@ QString SockCanFrame::get_data(void) const
     ushort   chk    = SockCanFrame::calc_chksum_16(p_data, this->recv_data.size()/2);
 
     if ( 0 != chk ) {
-        qDebug() << "data chksum is invalid. " << chk;
-
         return (tmp);
     }
 
     QString str = this->recv_data.toHex();
-
     for (int i = 0; i < (str.length() - 4); i += 2) {
         tmp += str.mid(i, 2) + " ";
     }
