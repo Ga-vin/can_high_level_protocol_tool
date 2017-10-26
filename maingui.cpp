@@ -65,11 +65,13 @@ void MainGui::do_rx_msg(bool flag)
         p_task = new RxTask(port);
         QObject::connect(this, SIGNAL(notify_change_stop_flag()), p_task, SLOT(update_stop_flag()));
         QObject::connect(p_task, SIGNAL(notify_can_frame(QByteArray)), this, SLOT(do_update_rx_msg(QByteArray)));
+        QObject::connect(this, SIGNAL(notify_send_ack_data(QByteArray)), p_task, SLOT(do_send_ack_data(QByteArray)));
         p_task->start();
     } else {
         emit notify_change_stop_flag();
         QObject::disconnect(this, SIGNAL(notify_change_stop_flag()), p_task, SLOT(update_stop_flag()));
         QObject::disconnect(this->p_task, SIGNAL(notify_can_frame(QByteArray)), this, SLOT(do_update_rx_msg(QByteArray)));
+        QObject::disconnect(this, SIGNAL(notify_send_ack_data(QByteArray)), p_task, SLOT(do_send_ack_data(QByteArray)));
         p_task->quit();
         p_task->wait(10);
 
@@ -615,8 +617,7 @@ void MainGui::data_handle(const QByteArray &byte)
         this->psock_can_frame->set_src(0xF0);
 
         if ( sock_can_data.is_dev_identify_broad()) {
-            /* 回复上位机发送的广播设备识别帧 */
-            this->do_ack_dev_identify();
+
 
             this->psock_can_frame->set_dest(0xFF);
             uchar *p_data  = (uchar *)sock_can_data.can_data();
@@ -630,6 +631,8 @@ void MainGui::data_handle(const QByteArray &byte)
             tmp_array.append(*(p_data + 1));
             tmp_array.append(*(p_data + 2));
             this->psock_can_frame->append_oid(tmp_array);
+            /* 回复上位机发送的广播设备识别帧 */
+            this->do_ack_dev_identify();
         } else if ( sock_can_data.is_dev_identify_allow()){
             qDebug() << "allow";
             this->psock_can_frame->set_dest(*(p_new_tmp + 3));
@@ -1125,8 +1128,9 @@ void MainGui::do_ack_dev_identify(void)
     QByteArray     byte;
     arbit_header_t arbit;
 
-    arbit.identify_code = SockCanData::DEV_IDENTIFY;
-    arbit.ctrl_code     = SockCanFrame::DEV_IDENTIFY_REQ;
+    arbit.reserve              = 0x0;
+    arbit.identify_code        = SockCanData::DEV_IDENTIFY;
+    arbit.ctrl_code            = SockCanFrame::DEV_IDENTIFY_REQ;
     arbit.user_code.dev_oid_hi = 0x003456;
 
     /* ID */
@@ -1158,7 +1162,6 @@ void MainGui::do_ack_dev_identify(void)
     byte.append((char)(0x9A));
     byte.append((char)(0xBC));
 
-    QHostAddress host;
-    host.setAddress("192.168.7.34");
-    this->ack_data_sendp->writeDatagram(byte, host, 55008);
+    qDebug() << SockCanData::bytearray_to_hex_str(byte);
+    emit notify_send_ack_data(byte);
 }

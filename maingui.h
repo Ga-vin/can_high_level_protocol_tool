@@ -25,6 +25,7 @@ signals:
     void notify_err_stop_flag(void);
     void notify_ack_data(int index);
     void notify_ack_data(int index, uchar src, uchar dest);
+    void notify_send_ack_data(const QByteArray &byte);
     
 public slots:
     void do_update_current_time(void);
@@ -84,6 +85,7 @@ private:
     void data_handle(const QByteArray &byte);
     void update_data_tables(void);
     void send_ack_data(const QString &host_ip, ushort host_port, const QByteArray &byte, arbit_header_t arbit, can_msg_header_t header);
+
     QString make_rand_data(void);
 
 private:

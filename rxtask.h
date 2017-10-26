@@ -27,15 +27,18 @@ signals:
     
 public slots:
     void update_stop_flag(void);
+    void do_send_ack_data(const QByteArray &byte);
     
 private:
     QUdpSocket   *p_udp_socket;
     quint16       port;
+    quint16       rx_port;
     QTime         start_time;
 
     bool          is_stop;
 
     QMutex        locker;
+    QHostAddress  rx_host;
 };
 
 #endif // RXTASK_H

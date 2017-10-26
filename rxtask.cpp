@@ -48,7 +48,7 @@ void RxTask::run(void)
             QHostAddress send;
 
             data.resize(data_len);
-            this->p_udp_socket->readDatagram(data.data(), data_len, &send, &this->port);
+            this->p_udp_socket->readDatagram(data.data(), data_len, &this->rx_host, &this->rx_port);
             this->start_time = QTime::currentTime();
 
             emit notify_can_frame(data);
@@ -71,4 +71,16 @@ void RxTask::update_stop_flag()
 {
     QMutexLocker locker(&this->locker);
     this->is_stop = true;
+}
+
+void RxTask::do_send_ack_data(const QByteArray &byte)
+{
+    qint64       ret;
+
+    if ( !byte.isEmpty()) {
+        ret = this->p_udp_socket->writeDatagram(byte, this->rx_host, this->rx_port);
+        if ( ret < 0) {
+            qDebug() << "send error";
+        }
+    }
 }
