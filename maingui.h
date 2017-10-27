@@ -84,15 +84,13 @@ private:
     void change_btn_color(bool flag);
     void data_handle(const QByteArray &byte);
     void update_data_tables(void);
-    void send_ack_data(const QString &host_ip, ushort host_port, const QByteArray &byte, arbit_header_t arbit, can_msg_header_t header);
+    void send_ack_data(const QByteArray &byte, arbit_header_t arbit, can_msg_header_t header);
 
     QString make_rand_data(void);
 
 private:
     RxTask    *p_task;
     ErrRxTask *p_err_task;
-
-    QUdpSocket *ack_data_sendp;
 
     uint        prj_ack_tx_cnt;
     uint        bak_ack_tx_cnt;
